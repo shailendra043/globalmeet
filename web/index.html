@@ -41,6 +41,11 @@
   <script src="flutter.js" defer></script>
 
   <style>
+    body {
+      background-color: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
     .loading-container {
       display: flex;
       justify-content: center;
@@ -90,50 +95,49 @@
   </div>
 
   <script>
-    window.addEventListener('load', function() {
+    window.addEventListener('load', function(ev) {
       var loading = document.querySelector('#loading');
       var loadingText = loading.querySelector('.loading-text');
-      
+
       function updateLoadingText(text) {
         loadingText.textContent = text;
         console.log('Loading status:', text);
       }
 
       function showError(error) {
-        console.error('Initialization error:', error);
+        console.error('Error during initialization:', error);
         loading.querySelector('.loading-content').innerHTML += `
           <div class="error-text">
-            Failed to load app: ${error?.message || 'Unknown error'}<br>
+            Failed to load app: ${error?.message || error}<br>
             Please refresh the page or check console for details.
           </div>
         `;
       }
 
-      // Wait for Flutter to be initialized
-      window.addEventListener('flutter-first-frame', function() {
-        loading.style.opacity = '0';
-        loading.style.transition = 'opacity 0.4s ease-out';
-        setTimeout(() => loading.remove(), 400);
-      });
-
-      // Initialize Flutter
-      updateLoadingText('Initializing...');
-
-      // Delay initialization slightly to ensure flutter.js is loaded
-      setTimeout(async function() {
-        try {
-          window.flutterWebRenderer = "canvaskit";
-          const engineInitializer = await _flutter.initializeEngine({
-            useColorEmoji: true,
-          });
+      try {
+        updateLoadingText('Initializing...');
+        
+        _flutter.loader.load({
+          serviceWorker: {
+            serviceWorkerVersion: serviceWorkerVersion,
+          }
+        }).then((engineInitializer) => {
           updateLoadingText('Starting engine...');
-          await engineInitializer.initializeEngine();
-          updateLoadingText('Starting app...');
-          await engineInitializer.autoStart();
-        } catch (error) {
-          showError(error);
-        }
-      }, 100);
+          return engineInitializer.initializeEngine();
+        }).then((appRunner) => {
+          updateLoadingText('Starting application...');
+          return appRunner.runApp();
+        }).then(() => {
+          console.log('Application started successfully');
+          loading.style.opacity = '0';
+          loading.style.transition = 'opacity 0.4s ease-out';
+          setTimeout(() => loading.remove(), 400);
+        }).catch((err) => {
+          showError(err);
+        });
+      } catch (err) {
+        showError(err);
+      }
     });
 
     // Register service worker
