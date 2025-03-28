@@ -16,26 +16,58 @@ import 'providers/post_provider.dart';
 void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
+    debugPrint('Flutter binding initialized');
     
     // Initialize Firebase with web options
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    debugPrint('Firebase initialized successfully');
     
     // Initialize security services
     await SecureStorageService.initialize();
+    debugPrint('SecureStorage initialized');
     
     // Initialize notification service
     final notificationService = NotificationService();
     await notificationService.initialize();
+    debugPrint('Notification service initialized');
     
     runApp(const MyApp());
-  } catch (e) {
-    print('Error initializing app: $e');
+  } catch (e, stackTrace) {
+    debugPrint('Error initializing app: $e');
+    debugPrint('Stack trace: $stackTrace');
     runApp(MaterialApp(
       home: Scaffold(
         body: Center(
-          child: Text('Error initializing app: $e'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Error initializing app:',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  e.toString(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ));
@@ -87,16 +119,23 @@ class MyApp extends StatelessWidget {
             if (snapshot.hasError) {
               return Scaffold(
                 body: Center(
-                  child: Text('Error: ${snapshot.error}'),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Error: ${snapshot.error}'),
+                    ],
+                  ),
                 ),
               );
             }
 
-            if (!snapshot.hasData) {
-              return const AuthScreen();
-            }
-
-            return const FeedScreen();
+            return snapshot.hasData ? const FeedScreen() : const AuthScreen();
           },
         ),
       ),
