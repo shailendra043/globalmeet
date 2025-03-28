@@ -32,29 +32,13 @@
   <title>GlobalMeet</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- This script adds the flutter initialization JS code -->
-  <script src="flutter.js" defer></script>
-
   <script>
     // The value below is injected by flutter build, do not touch.
     var serviceWorkerVersion = '{{flutter_service_worker_version}}';
-
-    // Preload Firebase scripts
-    var firebaseScripts = [
-      'https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js',
-      'https://www.gstatic.com/firebasejs/9.6.0/firebase-auth.js',
-      'https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js',
-      'https://www.gstatic.com/firebasejs/9.6.0/firebase-storage.js'
-    ];
-
-    // Preload Firebase scripts
-    firebaseScripts.forEach(function(src) {
-      var script = document.createElement('script');
-      script.src = src;
-      script.defer = true;
-      document.head.appendChild(script);
-    });
   </script>
+
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
 
   <style>
     .loading-container {
@@ -106,12 +90,6 @@
   </div>
 
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
-      });
-    }
-
     window.addEventListener('load', function() {
       var loading = document.querySelector('#loading');
       var loadingText = loading.querySelector('.loading-text');
@@ -131,49 +109,45 @@
         `;
       }
 
+      // Wait for Flutter to be initialized
+      window.addEventListener('flutter-first-frame', function() {
+        loading.style.opacity = '0';
+        loading.style.transition = 'opacity 0.4s ease-out';
+        setTimeout(() => loading.remove(), 400);
+      });
+
       // Initialize Flutter
-      if (typeof window.flutter === 'undefined') {
-        window._flutter = {
-          loader: {
-            didCreateEngineInitializer: false
-          }
-        };
-      }
+      updateLoadingText('Initializing...');
 
-      try {
-        updateLoadingText('Initializing...');
-
-        window.flutterConfiguration = {
-          canvasKitBaseUrl: "/canvaskit/"
-        };
-
-        _flutter.loader.load({
-          serviceWorker: { serviceWorkerVersion }
-        })
-        .then((engineInitializer) => {
-          updateLoadingText('Starting engine...');
-          return engineInitializer.initializeEngine({
+      // Delay initialization slightly to ensure flutter.js is loaded
+      setTimeout(async function() {
+        try {
+          window.flutterWebRenderer = "canvaskit";
+          const engineInitializer = await _flutter.initializeEngine({
             useColorEmoji: true,
           });
-        })
-        .then((appRunner) => {
-          updateLoadingText('Loading app...');
-          return appRunner.runApp();
-        })
-        .then(() => {
-          loading.style.opacity = '0';
-          loading.style.transition = 'opacity 0.4s ease-out';
-          setTimeout(() => loading.remove(), 400);
-        })
-        .catch((error) => showError(error));
-
-      } catch (error) {
-        showError(error);
-      }
+          updateLoadingText('Starting engine...');
+          await engineInitializer.initializeEngine();
+          updateLoadingText('Starting app...');
+          await engineInitializer.autoStart();
+        } catch (error) {
+          showError(error);
+        }
+      }, 100);
     });
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
+      });
+    }
   </script>
-  
-  <!-- Add a target element for Flutter -->
-  <div id="flutter_target"></div>
+
+  <!-- Firebase Configuration -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-storage.js" defer></script>
 </body>
 </html>
