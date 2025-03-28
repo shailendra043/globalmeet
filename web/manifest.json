@@ -1,11 +1,11 @@
 {
-    "name": "globalmeet",
-    "short_name": "globalmeet",
+    "name": "GlobalMeet",
+    "short_name": "GlobalMeet",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "A global social networking platform for connecting people worldwide.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -4,101 +4,111 @@ import '../models/post.dart';
 import '../providers/post_provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import '../services/post_service.dart';
+import 'package:video_player/video_player.dart';
 
-class PostCard extends StatelessWidget {
+class PostCard extends StatefulWidget {
   final Post post;
 
   const PostCard({
-    super.key,
+    Key? key,
     required this.post,
-  });
+  }) : super(key: key);
+
+  @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard> {
+  VideoPlayerController? _videoController;
+  bool _isVideoInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.post.mediaType == MediaType.video && widget.post.mediaUrl != null) {
+      _initializeVideo();
+    }
+  }
+
+  Future<void> _initializeVideo() async {
+    _videoController = VideoPlayerController.network(widget.post.mediaUrl!);
+    try {
+      await _videoController!.initialize();
+      if (mounted) {
+        setState(() {
+          _isVideoInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error initializing video: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = context.read<AuthProvider>().user;
-    final isLiked = currentUser != null && post.likedBy.contains(currentUser.uid);
-
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Post header
           ListTile(
             leading: CircleAvatar(
-              backgroundImage: NetworkImage(post.userProfilePic),
+              backgroundImage: widget.post.userProfilePicture.isNotEmpty
+                  ? NetworkImage(widget.post.userProfilePicture)
+                  : null,
+              child: widget.post.userProfilePicture.isEmpty
+                  ? Text(widget.post.userName[0].toUpperCase())
+                  : null,
             ),
-            title: Text(post.userName),
-            subtitle: Text(timeago.format(post.createdAt)),
-            trailing: currentUser?.uid == post.userId
-                ? IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      context.read<PostProvider>().deletePost(post.id);
-                    },
-                  )
-                : null,
+            title: Text(widget.post.userName),
+            subtitle: Text(timeago.format(widget.post.createdAt)),
           ),
-          
-          // Post content
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(post.content),
-          ),
-          
-          // Media content
-          if (post.mediaUrls.isNotEmpty) ...[
+          if (widget.post.content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(widget.post.content),
+            ),
+          if (widget.post.mediaUrl != null) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              height: 300,
-              child: PageView.builder(
-                itemCount: post.mediaUrls.length,
-                itemBuilder: (context, index) {
-                  final url = post.mediaUrls[index];
-                  return Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                  );
-                },
-              ),
-            ),
+            _buildMediaContent(),
           ],
-          
-          // Post actions
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 IconButton(
                   icon: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.red : null,
+                    widget.post.likes.contains('currentUserId')
+                        ? Icons.favorite
+                        : Icons.favorite_border,
                   ),
-                  onPressed: currentUser != null
-                      ? () {
-                          context
-                              .read<PostProvider>()
-                              .toggleLike(post.id, currentUser.uid);
-                        }
-                      : null,
-                ),
-                Text('${post.likedBy.length}'),
-                const SizedBox(width: 16),
-                IconButton(
-                  icon: const Icon(Icons.comment),
+                  color: widget.post.likes.contains('currentUserId')
+                      ? Colors.red
+                      : Colors.grey,
                   onPressed: () {
-                    // Show comments dialog
-                    _showCommentsDialog(context);
+                    context.read<PostService>().toggleLike(
+                      widget.post.id,
+                      'currentUserId',
+                      'Current User', // Replace with actual user name
+                    );
                   },
                 ),
-                Text('${post.comments.length}'),
+                Text('${widget.post.likes.length}'),
                 const SizedBox(width: 16),
                 IconButton(
-                  icon: const Icon(Icons.share),
+                  icon: const Icon(Icons.comment_outlined),
                   onPressed: () {
-                    // Implement share functionality
+                    // TODO: Implement comment functionality
                   },
                 ),
+                Text('${widget.post.comments.length}'),
               ],
             ),
           ),
@@ -107,77 +117,65 @@ class PostCard extends StatelessWidget {
     );
   }
 
-  void _showCommentsDialog(BuildContext context) {
-    final commentController = TextEditingController();
-    final currentUser = context.read<AuthProvider>().user;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Comments'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: post.comments.length,
-                  itemBuilder: (context, index) {
-                    final comment = post.comments[index];
-                    return ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.person),
-                      ),
-                      title: Text(comment.userName),
-                      subtitle: Text(comment.content),
-                      trailing: Text(
-                        timeago.format(comment.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    );
-                  },
-                ),
+  Widget _buildMediaContent() {
+    if (widget.post.mediaType == MediaType.image) {
+      return Image.network(
+        widget.post.mediaUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 300,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return SizedBox(
+            height: 300,
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
               ),
-              if (currentUser != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: commentController,
-                          decoration: const InputDecoration(
-                            hintText: 'Add a comment...',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.send),
-                        onPressed: () {
-                          if (commentController.text.isNotEmpty) {
-                            final comment = Comment(
-                              id: DateTime.now().toString(),
-                              userId: currentUser.uid,
-                              userName: currentUser.displayName ?? 'Anonymous',
-                              content: commentController.text,
-                              createdAt: DateTime.now(),
-                            );
-                            context
-                                .read<PostProvider>()
-                                .addComment(post.id, comment);
-                            commentController.clear();
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+            ),
+          );
+        },
+      );
+    } else if (widget.post.mediaType == MediaType.video) {
+      if (!_isVideoInitialized) {
+        return const SizedBox(
+          height: 300,
+          child: Center(
+            child: CircularProgressIndicator(),
           ),
-        ),
-      ),
-    );
+        );
+      }
+
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          AspectRatio(
+            aspectRatio: _videoController!.value.aspectRatio,
+            child: VideoPlayer(_videoController!),
+          ),
+          IconButton(
+            icon: Icon(
+              _videoController!.value.isPlaying
+                  ? Icons.pause
+                  : Icons.play_arrow,
+              size: 50,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _videoController!.value.isPlaying
+                    ? _videoController!.pause()
+                    : _videoController!.play();
+              });
+            },
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 } 

@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isFriend(userId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/friends/$(userId));
+    }
+    
+    function isValidMediaType() {
+      return request.resource.data.mediaType in ['image', 'video'];
+    }
+    
+    function isValidFileSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB limit
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isFriend(userId));
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+      
+      // User's friends subcollection
+      match /friends/{friendId} {
+        allow read: if isAuthenticated() && (isOwner(userId) || isOwner(friendId));
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      // User's settings subcollection
+      match /settings/{settingId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+
+    // Posts collection
+    match /posts/{postId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isFriend(resource.data.userId)
+      );
+      allow create: if isAuthenticated() && 
+        isOwner(request.resource.data.userId) &&
+        isValidMediaType() &&
+        isValidFileSize();
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Post's comments subcollection
+      match /comments/{commentId} {
+        allow read: if isAuthenticated() && (
+          isOwner(resource.data.userId) || 
+          isFriend(resource.data.userId)
+        );
+        allow create: if isAuthenticated() && 
+          isOwner(request.resource.data.userId);
+        allow update, delete: if isAuthenticated() && 
+          isOwner(resource.data.userId);
+      }
+    }
+
+    // Chats collection
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated() && (
+        isOwner(resource.data.userId1) || 
+        isOwner(resource.data.userId2)
+      );
+      
+      // Chat's messages subcollection
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && (
+          isOwner(resource.data.senderId) || 
+          isOwner(resource.data.receiverId)
+        );
+      }
+    }
+
+    // Friend requests collection
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.senderId) || 
+        isOwner(resource.data.receiverId)
+      );
+      allow create: if isAuthenticated() && 
+        isOwner(request.resource.data.senderId);
+      allow update, delete: if isAuthenticated() && (
+        isOwner(resource.data.senderId) || 
+        isOwner(resource.data.receiverId)
+      );
+    }
+  }
+} 

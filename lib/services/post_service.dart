@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/post.dart';
+import 'dart:io';
+import '../services/notification_service.dart';
+import 'package:video_compress/video_compress.dart';
 
 class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Get posts stream
   Stream<List<Post>> getPosts() {
@@ -21,18 +25,25 @@ class PostService {
   Future<void> createPost({
     required String userId,
     required String userName,
-    required String userProfilePic,
+    required String userProfilePicture,
     required String content,
-    required List<String> mediaUrls,
+    File? mediaFile,
+    MediaType? mediaType,
   }) async {
+    String? mediaUrl;
+    if (mediaFile != null && mediaType != null) {
+      mediaUrl = await _uploadMedia(mediaFile, mediaType);
+    }
+
     final post = Post(
-      id: '', // Will be set by Firestore
+      id: '', // Firestore will generate this
       userId: userId,
       userName: userName,
-      userProfilePic: userProfilePic,
+      userProfilePicture: userProfilePicture,
       content: content,
-      mediaUrls: mediaUrls,
-      likedBy: [],
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
+      likes: [],
       comments: [],
       createdAt: DateTime.now(),
     );
@@ -40,23 +51,60 @@ class PostService {
     await _firestore.collection('posts').add(post.toMap());
   }
 
-  // Like/Unlike a post
-  Future<void> toggleLike(String postId, String userId) async {
+  // Upload media file
+  Future<String> _uploadMedia(File file, MediaType type) async {
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+    final ref = _storage.ref().child('posts/$fileName');
+    
+    File fileToUpload = file;
+    
+    // Compress video if it's a video file
+    if (type == MediaType.video) {
+      final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+        file.path,
+        quality: VideoQuality.MediumQuality,
+        deleteOrigin: false,
+      );
+      if (mediaInfo?.file != null) {
+        fileToUpload = mediaInfo!.file!;
+      }
+    }
+    
+    final uploadTask = ref.putFile(fileToUpload);
+    final snapshot = await uploadTask;
+    
+    return await snapshot.ref.getDownloadURL();
+  }
+
+  // Toggle like on a post
+  Future<void> toggleLike(String postId, String userId, String userName) async {
     final postRef = _firestore.collection('posts').doc(postId);
     final postDoc = await postRef.get();
-    
-    if (postDoc.exists) {
-      final post = Post.fromFirestore(postDoc);
-      final likedBy = List<String>.from(post.likedBy);
-      
-      if (likedBy.contains(userId)) {
-        likedBy.remove(userId);
-      } else {
-        likedBy.add(userId);
-      }
 
-      await postRef.update({'likedBy': likedBy});
+    if (!postDoc.exists) {
+      throw Exception('Post not found');
     }
+
+    final post = Post.fromFirestore(postDoc);
+    final likes = List<String>.from(post.likes);
+
+    if (likes.contains(userId)) {
+      likes.remove(userId);
+    } else {
+      likes.add(userId);
+      // Send notification to post owner if they're not the one who liked
+      if (post.userId != userId) {
+        await _notificationService.sendNotification(
+          userId: post.userId,
+          title: 'New Like',
+          body: '$userName liked your post',
+          type: 'like',
+          data: {'postId': postId},
+        );
+      }
+    }
+
+    await postRef.update({'likes': likes});
   }
 
   // Add a comment to a post
@@ -71,18 +119,23 @@ class PostService {
       await postRef.update({
         'comments': comments.map((comment) => comment.toMap()).toList(),
       });
-    }
-  }
 
-  // Upload media file
-  Future<String> uploadMedia(String filePath) async {
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-    final ref = _storage.ref().child('media/$fileName');
-    
-    final uploadTask = ref.putData(filePath as dynamic);
-    final snapshot = await uploadTask;
-    
-    return await snapshot.ref.getDownloadURL();
+      // Send notification to post owner
+      if (post.userId != comment.userId) {
+        await _notificationService.sendNotification(
+          userId: post.userId,
+          title: 'New Comment',
+          body: '${comment.userName} commented on your post',
+          type: 'comment',
+          data: {
+            'postId': postId,
+            'commentId': comment.id,
+            'userId': comment.userId,
+            'userName': comment.userName,
+          },
+        );
+      }
+    }
   }
 
   // Delete a post
@@ -93,10 +146,10 @@ class PostService {
     if (postDoc.exists) {
       final post = Post.fromFirestore(postDoc);
       
-      // Delete media files from storage
-      for (final mediaUrl in post.mediaUrls) {
+      // Delete media file from storage if exists
+      if (post.mediaUrl != null) {
         try {
-          final ref = _storage.refFromURL(mediaUrl);
+          final ref = _storage.refFromURL(post.mediaUrl!);
           await ref.delete();
         } catch (e) {
           print('Error deleting media file: $e');

@@ -1,5 +1,5 @@
 name: globalmeet
-description: "A new Flutter project."
+description: A social media application.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.7.2
+  sdk: '>=3.0.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -33,27 +33,34 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.2
   
   # Firebase
-  firebase_core: ^2.27.1
-  firebase_auth: ^4.17.9
-  firebase_storage: ^11.6.10
-  cloud_firestore: ^4.15.5
-  google_sign_in: ^6.2.1
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  firebase_storage: ^11.5.6
+  firebase_messaging: ^14.7.9
   
   # State Management
-  provider: ^6.1.2
+  provider: ^6.1.1
   
   # UI Components
   flutter_svg: ^2.0.10+1
   loading_animation_widget: ^1.2.0+4
+  flutter_local_notifications: ^16.3.0
   
   # Utils
   shared_preferences: ^2.2.2
   intl: ^0.19.0
-  timeago: ^3.6.1
+  timeago: ^3.6.0
   image_picker: ^1.0.7
+  video_player: ^2.8.2
+  video_compress: ^3.1.2
+  flutter_secure_storage: ^9.0.0
+  crypto: ^3.0.3
+  encrypt: ^5.0.3
+  google_sign_in: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -64,7 +71,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^2.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -78,9 +85,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

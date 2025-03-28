@@ -1,12 +1,17 @@
 import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import '../services/post_service.dart';
+import '../services/user_service.dart';
+import 'dart:io';
 
 class PostProvider with ChangeNotifier {
-  final PostService _postService = PostService();
+  final PostService _postService;
+  final UserService _userService;
   List<Post> _posts = [];
   bool _isLoading = false;
   String? _error;
+
+  PostProvider(this._postService, this._userService);
 
   List<Post> get posts => _posts;
   bool get isLoading => _isLoading;
@@ -27,57 +32,59 @@ class PostProvider with ChangeNotifier {
   }
 
   Future<void> createPost({
-    required String userId,
-    required String userName,
-    required String userProfilePic,
     required String content,
-    required List<String> mediaUrls,
+    File? mediaFile,
+    MediaType? mediaType,
   }) async {
     try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
+      final user = await _userService.getCurrentUser();
+      if (user == null) {
+        throw Exception('User not found');
+      }
 
       await _postService.createPost(
-        userId: userId,
-        userName: userName,
-        userProfilePic: userProfilePic,
+        userId: user.id,
+        userName: user.name,
+        userProfilePicture: user.profilePicture,
         content: content,
-        mediaUrls: mediaUrls,
+        mediaFile: mediaFile,
+        mediaType: mediaType,
       );
+      _error = null;
     } catch (e) {
       _error = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
-  Future<void> toggleLike(String postId, String userId) async {
+  Future<void> toggleLike(String postId, String userId, String userName) async {
     try {
-      await _postService.toggleLike(postId, userId);
+      await _postService.toggleLike(postId, userId, userName);
+      _error = null;
     } catch (e) {
       _error = e.toString();
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> addComment(String postId, Comment comment) async {
     try {
       await _postService.addComment(postId, comment);
+      _error = null;
     } catch (e) {
       _error = e.toString();
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   Future<void> deletePost(String postId) async {
     try {
       await _postService.deletePost(postId);
+      _error = null;
     } catch (e) {
       _error = e.toString();
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   void clearError() {
